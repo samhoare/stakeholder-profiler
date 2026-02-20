@@ -48,7 +48,24 @@ function parseUrls(text) {
     .slice(0, 25);
 }
 
-// Simple POST endpoint — waits for full result, no streaming
+// Retry wrapper — retries on 529 overloaded errors with backoff
+async function withRetry(fn, retries = 5, delay = 3000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const isOverloaded = e?.status === 529 || e?.message?.includes("overloaded");
+      if (isOverloaded && i < retries - 1) {
+        console.log(`Overloaded, retrying in ${delay}ms (attempt ${i + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2; // exponential backoff
+      } else {
+        throw e;
+      }
+    }
+  }
+}
+
 app.post("/api/profile", async (req, res) => {
   const { name, role, company } = req.body;
 
@@ -56,14 +73,14 @@ app.post("/api/profile", async (req, res) => {
     return res.status(400).json({ error: "Name is required" });
   }
 
-  // Give the response plenty of time
-  req.setTimeout(180000);
-  res.setTimeout(180000);
+  req.setTimeout(300000);
+  res.setTimeout(300000);
 
   try {
+    // Step 1: web search with retry
     let research = "";
     try {
-      const searchRes = await client.messages.create({
+      const searchRes = await withRetry(() => client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 3000,
         tools: [{ type: "web_search_20250305", name: "web_search" }],
@@ -71,18 +88,18 @@ app.post("/api/profile", async (req, res) => {
           role: "user",
           content: `Search for comprehensive public information about ${name}${role ? `, ${role}` : ""}${company ? ` at ${company}` : ""}. Find: career history, biographical details, speeches, events, publications, LinkedIn profile, awards, news coverage. Include all source URLs.`
         }]
-      });
+      }));
 
       const texts = (searchRes.content || [])
         .filter(b => b.type === "text")
         .map(b => b.text);
       if (texts.length) research = texts.join("\n");
     } catch (e) {
-      console.log("Web search failed:", e.message);
-      // Continue without research
+      console.log("Web search failed after retries:", e.message);
     }
 
-    const profileRes = await client.messages.create({
+    // Step 2: build profile with retry
+    const profileRes = await withRetry(() => client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 5000,
       system: SYSTEM_PROMPT,
@@ -98,7 +115,7 @@ ${research || "No web research available — use your training knowledge. Note c
 
 Extract all URLs from the research for the sources array. Be specific and grounded.`
       }]
-    });
+    }));
 
     const txt = profileRes.content?.[0]?.text || "";
     let parsed;
@@ -123,8 +140,9 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-// Increase server timeout to 3 minutes
 const server = app.listen(PORT, () => {
   console.log(`\n✅ Stakeholder Profiler running at http://localhost:${PORT}\n`);
 });
-server.timeout = 180000;
+server.timeout = 300000;
+server.requestTimeout = 300000;
+server.headersTimeout = 310000;
