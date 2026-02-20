@@ -48,7 +48,6 @@ function parseUrls(text) {
     .slice(0, 25);
 }
 
-// SSE endpoint — streams status events then final profile JSON
 app.get("/api/profile", async (req, res) => {
   const { name, role, company } = req.query;
 
@@ -56,18 +55,29 @@ app.get("/api/profile", async (req, res) => {
     return res.status(400).json({ error: "Name is required" });
   }
 
-  // Set up SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   const send = (event, data) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (res.flush) res.flush();
+  };
+
+  // Ping every 15s to keep the connection alive through Railway's proxy
+  const keepalive = setInterval(() => {
+    res.write(": keepalive\n\n");
+    if (res.flush) res.flush();
+  }, 15000);
+
+  const done = () => {
+    clearInterval(keepalive);
+    res.end();
   };
 
   try {
-    // Step 1: web search
     send("status", { message: "Searching web for public information…" });
 
     let research = "";
@@ -90,7 +100,6 @@ app.get("/api/profile", async (req, res) => {
       send("status", { message: "Web search unavailable — using training knowledge…" });
     }
 
-    // Step 2: build profile
     send("status", { message: "Analysing and building profile…" });
 
     const profileRes = await client.messages.create({
@@ -120,7 +129,7 @@ Extract all URLs from the research for the sources array. Be specific and ground
       }
     } catch {
       send("error", { message: "Failed to parse profile output" });
-      res.end();
+      done();
       return;
     }
 
@@ -129,7 +138,7 @@ Extract all URLs from the research for the sources array. Be specific and ground
     send("error", { message: e.message || "Unknown error" });
   }
 
-  res.end();
+  done();
 });
 
 app.get("*", (req, res) => {
