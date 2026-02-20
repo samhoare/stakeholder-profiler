@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Stakeholder Profiling</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #E60000;
+    --dark: #1a1a1a;
+    --grey: #666;
+    --lgrey: #f4f4f4;
+    --border: #e0e0e0;
+  }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #ddd; color: var(--dark); }
+
+  /* ── Form screen ── */
+  #form-screen { min-height: 100vh; background: var(--lgrey); display: flex; flex-direction: column; }
+  .top-bar { background: #fff; border-bottom: 4px solid var(--red); padding: 18px 36px; display: flex; align-items: center; gap: 16px; }
+  .voda-logo { width: 32px; height: 32px; flex-shrink: 0; }
+  .top-bar-title { font-weight: 700; font-size: 15px; }
+  .top-bar-sub { font-size: 11px; color: var(--grey); }
+  .form-wrap { max-width: 540px; margin: 64px auto; padding: 0 20px; width: 100%; }
+  .form-card { background: #fff; border-radius: 6px; padding: 40px; box-shadow: 0 2px 16px rgba(0,0,0,0.07); }
+  .form-eyebrow { font-size: 10px; font-weight: 700; color: var(--red); text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 6px; }
+  .form-card h1 { font-family: Georgia, serif; font-size: 26px; font-weight: 700; margin-bottom: 28px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 11px; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .field label .req { color: var(--red); }
+  .field input { width: 100%; border: 1px solid var(--border); border-radius: 4px; padding: 11px 14px; font-size: 14px; font-family: inherit; outline: none; transition: border-color 0.15s; }
+  .field input:focus { border-color: var(--red); }
+  .btn-generate { width: 100%; background: var(--red); color: #fff; border: none; border-radius: 4px; padding: 14px; font-size: 12px; font-weight: 700; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 8px; transition: opacity 0.15s; }
+  .btn-generate:disabled { background: #ddd; cursor: not-allowed; }
+  .btn-generate:not(:disabled):hover { opacity: 0.88; }
+  .status-box { background: #f9f9f9; border: 1px solid var(--border); border-radius: 6px; padding: 20px 24px; margin-top: 8px; }
+  .status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .status-note { margin-top: 10px; font-size: 11px; color: #aaa; }
+  .error-box { margin-top: 14px; background: #fff5f5; border: 1px solid #fbb; border-radius: 4px; padding: 12px; font-size: 12px; color: #c00; }
+  .dots { display: inline-flex; gap: 4px; align-items: center; margin-left: 6px; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--red); animation: bounce 1.2s ease-in-out infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+  /* ── Profile screen ── */
+  #profile-screen { display: none; }
+  .nav { background: #fff; border-bottom: 4px solid var(--red); padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .nav-left { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--grey); }
+  .btn-back { background: transparent; border: 1px solid var(--border); border-radius: 4px; padding: 7px 16px; font-size: 11px; color: var(--grey); cursor: pointer; font-weight: 600; }
+  .btn-back:hover { background: var(--lgrey); }
+
+  .profile-wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 4px; }
+
+  /* ── Page layout ── */
+  .page { display: flex; background: #fff; border-bottom: 2px solid var(--border); }
+  .page.dark { background: #2d2d2d; border-bottom: 2px solid #444; }
+  .sidebar { width: 220px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--border); }
+  .page.dark .sidebar { background: #1e1e1e; border-right: 1px solid #333; }
+  .sidebar-photo { background: #e8e8e8; height: 190px; display: flex; align-items: center; justify-content: center; font-size: 56px; opacity: 0.3; }
+  .page.dark .sidebar-photo { background: #333; }
+  .sidebar-info { background: var(--red); padding: 16px 14px 18px; }
+  .sidebar-name { font-weight: 700; font-size: 16px; color: #fff; line-height: 1.25; margin-bottom: 5px; font-family: Georgia, serif; }
+  .sidebar-role { font-size: 11px; color: rgba(255,255,255,0.85); line-height: 1.5; margin-bottom: 12px; }
+  .sidebar-rule { width: 30px; height: 2px; background: #fff; margin-bottom: 10px; }
+  .sidebar-meta { font-size: 11px; color: rgba(255,255,255,0.9); line-height: 1.9; }
+  .sidebar-meta b { font-weight: 700; }
+  .sidebar-section { padding: 10px 14px; border-top: 1px solid var(--border); }
+  .sidebar-section-label { font-size: 9px; color: #bbb; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .sidebar-section-name { font-size: 11px; color: var(--red); font-weight: 600; line-height: 1.3; }
+
+  .page-content { flex: 1; padding: 30px 36px; min-width: 0; }
+  .breadcrumb { font-size: 10px; color: #bbb; margin-bottom: 18px; font-family: monospace; }
+  .page.dark .breadcrumb { color: #555; }
+
+  h2.section-head { font-family: Georgia, serif; font-size: 22px; font-weight: 700; color: var(--red); margin: 0 0 22px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+  p.body { font-size: 13px; line-height: 1.85; color: #333; }
+  .bullet { display: flex; gap: 7px; margin-bottom: 7px; font-size: 13px; line-height: 1.65; }
+  .bullet .dot-red { color: var(--red); flex-shrink: 0; }
+  .bullet .dot-grey { color: #aaa; flex-shrink: 0; }
+
+  /* cover */
+  .cover { background: #fff; display: flex; min-height: 380px; border-bottom: 2px solid var(--border); }
+  .cover-left { flex: 1; padding: 64px 52px; display: flex; flex-direction: column; justify-content: center; }
+  .cover-org { font-size: 30px; font-weight: 700; font-family: Georgia, serif; margin-bottom: 4px; }
+  .cover-sub { font-size: 20px; color: #555; margin-bottom: 4px; }
+  .cover-name { font-size: 22px; color: var(--red); font-family: Georgia, serif; font-weight: 700; margin-bottom: 28px; }
+  .cover-date { font-size: 13px; color: var(--grey); margin-bottom: 48px; }
+  .cover-right { width: 340px; background: #e8e8e8; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 80px; opacity: 0.25; }
+
+  /* career */
+  .career-phase-title { font-weight: 700; font-size: 13px; margin-bottom: 7px; }
+  .career-item { margin-bottom: 8px; }
+  .career-sub { padding-left: 22px; display: flex; gap: 7px; font-size: 12.5px; color: var(--grey); line-height: 1.6; }
+
+  /* disc */
+  .disc-mini-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .disc-mini { border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: #f9f9f9; }
+  .disc-mini.hi { background: rgba(0,0,0,0.04); }
+  .disc-badge { color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; display: inline-block; margin-bottom: 6px; text-transform: uppercase; }
+  .disc-mini-desc { font-size: 10.5px; color: #555; line-height: 1.5; }
+
+  /* full disc */
+  .disc-full { border-radius: 4px; padding: 14px 16px; }
+  .disc-full-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 3px; display: inline-block; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .disc-full p { font-size: 11.5px; color: #444; line-height: 1.65; margin: 0 0 10px; }
+  .disc-full-comms { font-size: 11px; line-height: 1.7; }
+  .disc-full-comms span.label { font-weight: 700; }
+  .disc-full-comms span.val { color: var(--grey); }
+
+  /* social */
+  .social-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .social-icon { width: 38px; height: 38px; background: #1a1a1a; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; }
+  .social-url { font-size: 12px; color: var(--red); word-break: break-all; }
+  .social-none { font-size: 12px; color: #888; font-style: italic; }
+  .gauge-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .gauge-label { font-size: 12px; color: #888; font-weight: 700; }
+  .social-note { font-size: 13px; line-height: 1.8; color: #ccc; margin-bottom: 24px; }
+
+  /* event card */
+  .event-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .event-card { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #f9f9f9; display: flex; flex-direction: column; }
+  .event-thumb { background: #e4e4e4; height: 90px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #888; padding: 12px; text-align: center; }
+  .event-body { padding: 14px 16px; flex: 1; font-size: 11.5px; color: var(--grey); line-height: 1.65; }
+  .btn-red { background: var(--red); color: #fff; border-radius: 4px; padding: 9px 12px; font-size: 11px; font-weight: 700; text-align: center; display: block; text-decoration: none; margin: 0 16px 16px; }
+  .btn-red:hover { opacity: 0.88; }
+
+  /* reading card */
+  .read-card { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .read-thumb { background: #e0e0e0; width: 100%; height: 110px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+  .read-title { background: var(--red); color: #fff; border-radius: 4px; padding: 9px 12px; font-size: 11px; font-weight: 700; text-align: center; display: block; text-decoration: none; width: 100%; }
+  .read-title:hover { opacity: 0.88; }
+  .read-detail { font-size: 11.5px; color: var(--grey); line-height: 1.65; text-align: center; }
+
+  /* sphere */
+  .sphere-row { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 24px; }
+  .org-box { border: 1px solid var(--border); background: #fff; border-radius: 4px; padding: 8px 12px; text-align: center; min-width: 150px; max-width: 200px; flex-shrink: 0; }
+  .org-box.hi { border-color: var(--red); background: var(--red); }
+  .org-box-role { font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--dark); }
+  .org-box.hi .org-box-role { color: #fff; }
+  .org-box-name { font-size: 11px; color: var(--grey); margin-top: 2px; }
+  .org-box.hi .org-box-name { color: rgba(255,255,255,0.85); }
+  .arrow { display: flex; align-items: center; flex-shrink: 0; }
+  .arrow-line { width: 32px; height: 2px; background: var(--red); }
+  .arrow-head { width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid var(--red); }
+  .peers-label { font-size: 11px; font-weight: 700; color: var(--grey); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .peers-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* appendix */
+  .appendix { background: var(--red); padding: 72px 60px; }
+  .appendix h2 { font-family: Georgia, serif; font-size: 44px; font-weight: 700; color: #fff; }
+
+  /* sources */
+  .sources-cols { columns: 2; column-gap: 36px; }
+  .source-link { display: block; break-inside: avoid; margin-bottom: 5px; font-size: 11.5px; color: var(--grey); word-break: break-all; text-decoration: none; }
+  .source-link:hover { color: var(--red); }
+
+  @media (max-width: 720px) {
+    .two-col, .three-col, .disc-mini-grid { grid-template-columns: 1fr; }
+    .cover-right { display: none; }
+    .sidebar { display: none; }
+    .sources-cols { columns: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- FORM SCREEN -->
+<div id="form-screen">
+  <div class="top-bar">
+    <svg class="voda-logo" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#E60000"/><circle cx="16" cy="16" r="9" fill="none" stroke="white" stroke-width="5"/><circle cx="16" cy="16" r="4" fill="#E60000"/></svg>
+    <div>
+      <div class="top-bar-title">Stakeholder Profiling</div>
+      <div class="top-bar-sub">AI-powered research tool</div>
+    </div>
+  </div>
+  <div class="form-wrap">
+    <div class="form-card">
+      <div class="form-eyebrow">New profile</div>
+      <h1>Enter subject details</h1>
+      <div class="field">
+        <label>Full Name <span class="req">*</span></label>
+        <input id="f-name" type="text" placeholder="e.g. Richard Sewell" />
+      </div>
+      <div class="field">
+        <label>Job Title</label>
+        <input id="f-role" type="text" placeholder="e.g. Deputy Director, ICT Infrastructure" />
+      </div>
+      <div class="field">
+        <label>Organisation</label>
+        <input id="f-company" type="text" placeholder="e.g. Welsh Government" />
+      </div>
+      <div id="status-box" class="status-box" style="display:none">
+        <div class="status-row">
+          <span id="status-msg"></span>
+          <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+        </div>
+        <div class="status-note">Web search can take up to 60 seconds — please wait</div>
+      </div>
+      <button id="btn-generate" class="btn-generate" disabled>Generate Profile →</button>
+      <div id="error-box" class="error-box" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE SCREEN -->
+<div id="profile-screen">
+  <div class="nav">
+    <div class="nav-left">
+      <svg style="width:28px;height:28px;flex-shrink:0" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#E60000"/><circle cx="16" cy="16" r="9" fill="none" stroke="white" stroke-width="5"/><circle cx="16" cy="16" r="4" fill="#E60000"/></svg>
+      <span>Stakeholder profiling – <strong id="nav-name"></strong></span>
+    </div>
+    <button class="btn-back" onclick="showForm()">← New Profile</button>
+  </div>
+  <div class="profile-wrap" id="profile-wrap"></div>
+</div>
+
+<script>
+// ── helpers ──────────────────────────────────────────────────────────────────
+const el = id => document.getElementById(id);
+const nameInput = el("f-name");
+const roleInput = el("f-role");
+const companyInput = el("f-company");
+const btnGen = el("btn-generate");
+
+nameInput.addEventListener("input", () => { btnGen.disabled = !nameInput.value.trim(); });
+nameInput.addEventListener("keydown", e => e.key === "Enter" && generate());
+roleInput.addEventListener("keydown", e => e.key === "Enter" && generate());
+companyInput.addEventListener("keydown", e => e.key === "Enter" && generate());
+
+function showForm() {
+  el("profile-screen").style.display = "none";
+  el("form-screen").style.display = "flex";
+  el("form-screen").style.flexDirection = "column";
+}
+
+function showProfile() {
+  el("form-screen").style.display = "none";
+  el("profile-screen").style.display = "block";
+  window.scrollTo(0, 0);
+}
+
+function setStatus(msg) {
+  el("status-box").style.display = "block";
+  el("btn-generate").style.display = "none";
+  el("status-msg").textContent = msg;
+}
+
+function setError(msg) {
+  el("status-box").style.display = "none";
+  el("btn-generate").style.display = "block";
+  el("error-box").style.display = "block";
+  el("error-box").textContent = msg;
+}
+
+function resetForm() {
+  el("status-box").style.display = "none";
+  el("btn-generate").style.display = "block";
+  el("error-box").style.display = "none";
+}
+
+// ── API call via SSE ─────────────────────────────────────────────────────────
+function generate() {
+  const name = nameInput.value.trim();
+  if (!name) return;
+  el("error-box").style.display = "none";
+  setStatus("Searching web for public information…");
+
+  const params = new URLSearchParams({ name, role: roleInput.value.trim(), company: companyInput.value.trim() });
+  const evtSource = new EventSource(`/api/profile?${params}`);
+
+  evtSource.addEventListener("status", e => {
+    const d = JSON.parse(e.data);
+    el("status-msg").textContent = d.message;
+  });
+
+  evtSource.addEventListener("done", e => {
+    evtSource.close();
+    resetForm();
+    const { profile } = JSON.parse(e.data);
+    renderProfile(profile);
+    showProfile();
+  });
+
+  evtSource.addEventListener("error", e => {
+    evtSource.close();
+    try {
+      const d = JSON.parse(e.data);
+      setError("Error: " + d.message);
+    } catch {
+      setError("Connection error. Check the server is running.");
+    }
+  });
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    setError("Connection lost. Is the server running?");
+    resetForm();
+  };
+}
+
+btnGen.addEventListener("click", generate);
+
+// ── Render ───────────────────────────────────────────────────────────────────
+const RED = "#E60000";
+const DISC_COLORS = { DIRECT: "#c0392b", INFLUENTIAL: "#e6a817", CONSCIENTIOUS: "#2980b9", STEADY: "#7ab648" };
+const DISC_DEFS = {
+  DIRECT: { desc: "Assertive, independent and decisive. Intense competitors who thrive on ambitious goals and challenges. Prefer action over analysis.", conv: "Conversation should be direct and straightforward, using a confident and assertive tone.", meet: "Meetings should be very brief, to the point and only scheduled when necessary.", email: "Emails should be short, punchy. Eliminate warm greetings, focus on benefits not features. Use bullet points if needed." },
+  INFLUENTIAL: { desc: "Confident, engaging and approachable. Love social settings and value connecting with others. Enjoy multi-tasking and exciting projects.", conv: "Project a casual tone, use humour and personal anecdotes, describe past events with colourful language.", meet: "Meetings should be done in-person, when possible, without a rigid agenda.", email: "Emails should be friendly, casual and as personalised as possible. Communication can be witty. Close with warmth." },
+  CONSCIENTIOUS: { desc: "Externally analytical and innovative, gravitating towards process, structure and rules. Sceptical, logical and objectively make decisions.", conv: "Use a serious, business-like demeanour and ask strictly objective questions. Build credibility with logic, rather than emotion.", meet: "Meetings should be minimal, formally scheduled and with a prepared agenda. Don't rush the decision-making process.", email: "Emails should be clear, detailed and factual. Support statements with data. Under promise and over deliver. Close with formality." },
+  STEADY: { desc: "Naturally reserved, value consistency and loyalty. Sympathetic to different perspectives and have excellent listening skills. Diplomatic.", conv: "Use a calm, agreeable, warm tone and be very considerate of their feelings.", meet: "Meetings should have a prepared agenda and be done in person.", email: "Emails should be warm, sincere and expressive. Include case studies and stories. Avoid pressure tactics. Close with warm formality." }
+};
+
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+    if (k === "class") el.className = v;
+    else if (k === "style") Object.assign(el.style, v);
+    else if (k === "href") { el.href = v; el.target = "_blank"; el.rel = "noopener noreferrer"; }
+    else el.setAttribute(k, v);
+  });
+  children.flat(Infinity).forEach(c => {
+    if (!c && c !== 0) return;
+    el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  });
+  return el;
+}
+
+function sidebar(p, section) {
+  return h("div", { class: "sidebar" },
+    h("div", { class: "sidebar-photo" }, "👤"),
+    h("div", { class: "sidebar-info" },
+      h("div", { class: "sidebar-name" }, p.name || ""),
+      h("div", { class: "sidebar-role" }, p.role || ""),
+      h("div", { class: "sidebar-rule" }),
+      h("div", { class: "sidebar-meta" },
+        h("b", null, "Nationality:"), ` ${p.nationality || "—"}`,
+        h("br"),
+        h("b", null, "Position held since:"), ` ${p.positionSince || "—"}`
+      )
+    ),
+    section ? h("div", { class: "sidebar-section" },
+      h("div", { class: "sidebar-section-label" }, "Current section"),
+      h("div", { class: "sidebar-section-name" }, section)
+    ) : null
+  );
+}
+
+function page(p, section, dark, ...children) {
+  const div = h("div", { class: dark ? "page dark" : "page" },
+    sidebar(p, section),
+    h("div", { class: "page-content" },
+      h("div", { class: "breadcrumb" }, `Stakeholder profiling – ${p.name}`),
+      ...children
+    )
+  );
+  return div;
+}
+
+function secHead(text) { return h("h2", { class: "section-head" }, text); }
+
+function bullet(dotClass, ...children) {
+  return h("div", { class: "bullet" }, h("span", { class: dotClass }, "•"), h("span", null, ...children));
+}
+
+function vodaLogo(size = 32) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 32 32");
+  svg.setAttribute("width", size);
+  svg.setAttribute("height", size);
+  svg.innerHTML = `<circle cx="16" cy="16" r="16" fill="${RED}"/><circle cx="16" cy="16" r="9" fill="none" stroke="white" stroke-width="5"/><circle cx="16" cy="16" r="4" fill="${RED}"/>`;
+  return svg;
+}
+
+function gauge(level) {
+  const pct = { none: 0.05, low: 0.22, medium: 0.52, high: 0.88 }[level] || 0.1;
+  const angle = -180 + pct * 180;
+  const r = 80, cx = 100, cy = 100;
+  const pt = deg => { const rad = deg * Math.PI / 180; return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)]; };
+  const [ax,ay]=pt(-180),[bx,by]=pt(-120),[cx2,cy2]=pt(-120),[dx,dy]=pt(-60),[ex,ey]=pt(-60),[fx,fy]=pt(0);
+  const nX = cx + (r-8)*Math.cos((angle-180)*Math.PI/180);
+  const nY = cy + (r-8)*Math.sin((angle-180)*Math.PI/180);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox","0 0 200 110");
+  svg.setAttribute("width","220");
+  svg.innerHTML = `
+    <path d="M${ax},${ay} A${r},${r} 0 0,1 ${bx},${by}" fill="none" stroke="#E60000" stroke-width="20" stroke-linecap="butt"/>
+    <path d="M${cx2},${cy2} A${r},${r} 0 0,1 ${dx},${dy}" fill="none" stroke="#f5c400" stroke-width="20" stroke-linecap="butt"/>
+    <path d="M${ex},${ey} A${r},${r} 0 0,1 ${fx},${fy}" fill="none" stroke="#7ab648" stroke-width="20" stroke-linecap="butt"/>
+    <line x1="${cx}" y1="${cy}" x2="${nX}" y2="${nY}" stroke="#222" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="5" fill="#222"/>
+    <text x="16" y="108" font-size="9" fill="#999" font-family="Arial">LOW</text>
+    <text x="162" y="108" font-size="9" fill="#999" font-family="Arial">HIGH</text>`;
+  return svg;
+}
+
+function orgBox(name, role, hi) {
+  return h("div", { class: hi ? "org-box hi" : "org-box" },
+    h("div", { class: "org-box-role" }, role || ""),
+    h("div", { class: "org-box-name" }, name || "")
+  );
+}
+
+function arrow() {
+  return h("div", { class: "arrow" }, h("div", { class: "arrow-line" }), h("div", { class: "arrow-head" }));
+}
+
+function renderProfile(p) {
+  const wrap = el("profile-wrap");
+  wrap.innerHTML = "";
+  el("nav-name").textContent = p.name || "";
+
+  const firstName = (p.name || "").split(" ").find(w => w.length > 2 && !w.match(/^(Sir|Lt|Gen|Mr|Ms|Dr|Prof|CBE|KCB|OBE|MBE)$/i)) || (p.name || "").split(" ")[0];
+
+  // ── COVER ──
+  const cover = h("div", { class: "cover" },
+    h("div", { class: "cover-left" },
+      h("div", { class: "cover-org" }, p.organisation || ""),
+      h("div", { class: "cover-sub" }, "Stakeholder profiling"),
+      h("div", { class: "cover-name" }, p.name || ""),
+      h("div", { class: "cover-date" }, new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" })),
+      vodaLogo(36)
+    ),
+    h("div", { class: "cover-right" }, "👤")
+  );
+  wrap.appendChild(cover);
+
+  // ── BACKGROUND ──
+  const bgRight = h("div", null);
+  if (p.education?.length) {
+    bgRight.appendChild(secHead("Education"));
+    p.education.forEach(e => {
+      bgRight.appendChild(h("div", { style: { fontSize:"13px", marginBottom:"8px", lineHeight:"1.6" } },
+        h("span", { style:{color:"#aaa", marginRight:"6px"} }, "•"),
+        h("strong", null, `${e.year}: `), h("strong", null, e.institution), `, ${e.qualification}`
+      ));
+    });
+  }
+  if (p.honorsAwards?.length) {
+    bgRight.appendChild(h("div", { style:{marginTop:"24px"} }, secHead("Honours & awards")));
+    p.honorsAwards.forEach(a => {
+      bgRight.appendChild(h("div", { style:{marginBottom:"12px"} },
+        h("div", { style:{fontWeight:700, fontSize:"13px", marginBottom:"3px"} }, a.title + ":"),
+        bullet("dot-grey", a.detail)
+      ));
+    });
+  }
+  if (p.licensesCerts?.length) {
+    bgRight.appendChild(h("div", { style:{marginTop:"20px"} }, secHead("Licenses & certifications")));
+    p.licensesCerts.forEach(c => bgRight.appendChild(bullet("dot-grey", c)));
+  }
+
+  wrap.appendChild(page(p, "Background", false,
+    secHead("Background"),
+    h("div", { class: "two-col" },
+      h("div", null, h("p", { class: "body" }, p.background || "")),
+      bgRight
+    )
+  ));
+
+  // ── CAREER ──
+  const phases = p.career || [];
+  const half = Math.ceil(phases.length / 2);
+  const careerCols = [phases.slice(0, half), phases.slice(half)].map(col => {
+    const colDiv = h("div", null);
+    col.forEach(ph => {
+      const phDiv = h("div", { style:{marginBottom:"20px"} });
+      phDiv.appendChild(h("div", { class: "career-phase-title" }, ph.phase + ":"));
+      (ph.items || []).forEach(item => {
+        const itemDiv = h("div", { class: "career-item" });
+        const main = h("div", { class: "bullet" },
+          h("span", { class: "dot-red" }, "•"),
+          h("span", null,
+            h("strong", null, `${item.period}: `),
+            h("strong", null, item.role),
+            item.organisation ? ` – ${item.organisation}.` : ".",
+            item.detail ? h("span", { style:{color:"#666"} }, ` ${item.detail}`) : null
+          )
+        );
+        itemDiv.appendChild(main);
+        (item.subItems || []).forEach(s => {
+          itemDiv.appendChild(h("div", { class: "career-sub" }, h("span", null, "-"), h("span", null, s)));
+        });
+        phDiv.appendChild(itemDiv);
+      });
+      colDiv.appendChild(phDiv);
+    });
+    return colDiv;
+  });
+
+  wrap.appendChild(page(p, "Career", false,
+    secHead("Career"),
+    h("div", { class: "two-col" }, ...careerCols)
+  ));
+
+  // ── INTERESTS + CONV STARTERS ──
+  const intLeft = h("div", null,
+    secHead("Interests & priorities"),
+    h("p", { class: "body", style:{marginBottom:"14px"} }, p.interestsPriorities?.intro || ""),
+    h("div", { style:{fontSize:"13px", color:"#666", marginBottom:"10px"} }, `${firstName}'s priorities include:`),
+    ...(p.interestsPriorities?.priorities || []).map(pr => h("div", { class: "bullet" },
+      h("span", { class: "dot-red" }, "•"),
+      h("span", null, h("strong", null, pr.title + ": "), h("span", { style:{color:"#666"} }, pr.detail))
+    )),
+    p.interestsPriorities?.personal ? h("p", { class: "body", style:{marginTop:"14px"} }, p.interestsPriorities.personal) : null
+  );
+  const intRight = h("div", null, secHead("Conversation starters"),
+    ...(p.conversationStarters || []).map(cat => h("div", { style:{marginBottom:"16px"} },
+      h("div", { style:{fontWeight:700, fontSize:"13px", marginBottom:"7px"} }, cat.category + ":"),
+      ...(cat.starters || []).map(s => h("div", { class: "bullet" },
+        h("span", { style:{color:"#aaa", flexShrink:0} }, "•"),
+        h("span", { style:{color:"#666"} }, s)
+      ))
+    ))
+  );
+
+  wrap.appendChild(page(p, "Interests & Priorities", false,
+    h("div", { class: "two-col" }, intLeft, intRight)
+  ));
+
+  // ── PERSONALITY INSIGHTS ──
+  const discLeft = h("div", null,
+    h("div", { style:{fontSize:"15px", fontWeight:700, marginBottom:"10px"} }, "DISC summary"),
+    h("p", { class: "body", style:{marginBottom:"14px"} }, p.disc?.summary || ""),
+    h("div", { style:{fontSize:"13px", color:"#666", marginBottom:"8px", textAlign:"center"} },
+      `Based on our research, we would place `, h("strong", null, firstName), ` between`
+    ),
+    h("div", { style:{textAlign:"center", marginBottom:"20px", fontSize:"15px", fontWeight:700} },
+      h("span", { style:{color: DISC_COLORS[p.disc?.primary] || RED} }, p.disc?.primary || ""),
+      h("span", { style:{color:"#666", fontWeight:400} }, " and "),
+      h("span", { style:{color: DISC_COLORS[p.disc?.secondary] || "#e6a817"} }, p.disc?.secondary || "")
+    ),
+    h("div", { class: "disc-mini-grid" },
+      ...["DIRECT","INFLUENTIAL","CONSCIENTIOUS","STEADY"].map(t => {
+        const hi = t === p.disc?.primary || t === p.disc?.secondary;
+        const c = DISC_COLORS[t];
+        const box = h("div", { class: hi ? "disc-mini hi" : "disc-mini" });
+        if (hi) box.style.borderColor = c;
+        const badge = h("span", { class: "disc-badge" }, t[0]);
+        badge.style.background = c;
+        box.appendChild(badge);
+        box.appendChild(h("div", { class: "disc-mini-desc" }, DISC_DEFS[t].desc));
+        return box;
+      })
+    )
+  );
+  const discRight = h("div", null,
+    h("div", { style:{fontSize:"15px", fontWeight:700, marginBottom:"10px"} }, "Engagement summary"),
+    h("p", { class: "body", style:{marginBottom:"14px"} }, p.engagementSummary || ""),
+    h("div", { style:{fontSize:"13px", color:"#666", marginBottom:"10px"} }, "In terms of engagement opportunities, we would recommend aligning interactions to their role and priorities, for example:"),
+    ...(p.engagementOpportunities || []).map(o => h("div", { class: "bullet" },
+      h("span", { class: "dot-red" }, "•"),
+      h("span", { style:{color:"#666"} }, o)
+    ))
+  );
+  wrap.appendChild(page(p, "Personality Insights", false,
+    secHead("Personality insights"),
+    h("div", { class: "two-col" }, discLeft, discRight)
+  ));
+
+  // ── SOCIAL (dark) ──
+  const socialPage = h("div", { class: "page dark" },
+    sidebar(p, "LinkedIn & Social"),
+    h("div", { class: "page-content" },
+      h("div", { class: "breadcrumb" }, `Stakeholder profiling – ${p.name}`),
+      h("h2", { class: "section-head" }, "LinkedIn & social channel engagement"),
+      h("div", { class: "two-col" },
+        h("div", null,
+          h("p", { class: "social-note" }, p.social?.linkedinNote || ""),
+          ...[
+            ["in", p.social?.linkedinUrl],
+            ["𝕏", p.social?.twitter],
+            ["◻", p.social?.instagram],
+            ["▶", p.social?.youtube]
+          ].map(([icon, url]) => h("div", { class: "social-row" },
+            h("div", { class: "social-icon" }, icon),
+            url ? h("a", { class: "social-url", href: url }, url) : h("span", { class: "social-none" }, "No obvious profile available")
+          ))
+        ),
+        h("div", { class: "gauge-wrap" },
+          h("div", { class: "gauge-label" }, "Social channel engagement"),
+          gauge(p.social?.linkedinLevel || "low")
+        )
+      )
+    )
+  );
+  wrap.appendChild(socialPage);
+
+  // ── EVENTS ──
+  if (p.events?.length) {
+    wrap.appendChild(page(p, "Events & Attendances", false,
+      secHead("Events & attendances"),
+      h("div", { class: "event-grid" },
+        ...p.events.map(ev => h("div", { class: "event-card" },
+          h("div", { class: "event-thumb" }, ev.title),
+          h("div", { class: "event-body" }, ev.detail || ""),
+          ev.url ? h("a", { class: "btn-red", href: ev.url }, "View source →") : null
+        ))
+      )
+    ));
+  }
+
+  // ── READING MATERIALS ──
+  if (p.readingMaterials?.length) {
+    wrap.appendChild(page(p, "Reading Materials", false,
+      secHead("Reading materials"),
+      h("div", { class: "three-col" },
+        ...p.readingMaterials.map(rm => h("div", { class: "read-card" },
+          h("div", { class: "read-thumb" }, "💻"),
+          rm.url ? h("a", { class: "read-title", href: rm.url }, rm.title) : h("div", { class: "read-title" }, rm.title),
+          h("p", { class: "read-detail" }, rm.detail || "")
+        ))
+      )
+    ));
+  }
+
+  // ── SPHERE OF INFLUENCE ──
+  if (p.sphereOfInfluence) {
+    const soi = p.sphereOfInfluence;
+    const sphereRow = h("div", { class: "sphere-row" });
+    if (soi.reportsTo?.name) { sphereRow.appendChild(orgBox(soi.reportsTo.name, soi.reportsTo.role)); sphereRow.appendChild(arrow()); }
+    sphereRow.appendChild(orgBox(p.name, p.role, true));
+    if (soi.directReports?.length) {
+      sphereRow.appendChild(arrow());
+      const drs = h("div", { style:{display:"flex", flexDirection:"column", gap:"8px"} });
+      soi.directReports.forEach(dr => drs.appendChild(orgBox(dr.name, dr.role)));
+      sphereRow.appendChild(drs);
+    }
+    const sphereContent = [secHead("Sphere of influence"), sphereRow];
+    if (soi.peers?.length) {
+      const peersWrap = h("div", null,
+        h("div", { class: "peers-label" }, "Peers"),
+        h("div", { class: "peers-wrap" }, ...soi.peers.map(peer => orgBox(peer.name, peer.role)))
+      );
+      sphereContent.push(peersWrap);
+    }
+    wrap.appendChild(page(p, "Sphere of Influence", false, ...sphereContent));
+  }
+
+  // ── APPENDIX DIVIDER ──
+  wrap.appendChild(h("div", { class: "appendix" }, h("h2", null, "Research appendix")));
+
+  // ── SOURCES ──
+  if (p.sources?.length) {
+    wrap.appendChild(page(p, "Sources", false,
+      secHead("Sources"),
+      h("div", { class: "sources-cols" },
+        ...p.sources.map(src => h("a", { class: "source-link", href: src }, "• " + src))
+      )
+    ));
+  }
+
+  // ── DISC COMMS ──
+  wrap.appendChild(page(p, "DISC Communication Styles", false,
+    secHead("DISC: communication styles"),
+    h("div", { class: "two-col" },
+      ...["DIRECT","INFLUENTIAL","CONSCIENTIOUS","STEADY"].map(t => {
+        const hi = t === p.disc?.primary || t === p.disc?.secondary;
+        const c = DISC_COLORS[t];
+        const d = DISC_DEFS[t];
+        const box = h("div", { class: "disc-full" });
+        box.style.border = `2px solid ${hi ? c : "#e0e0e0"}`;
+        if (hi) box.style.background = `${c}08`;
+        const badge = h("span", { class: "disc-full-badge" }, t);
+        badge.style.background = c; badge.style.color = "#fff";
+        box.appendChild(badge);
+        box.appendChild(h("p", null, d.desc));
+        const comms = h("div", { class: "disc-full-comms" });
+        [["In conversation:", d.conv],["In meetings:", d.meet],["Over email:", d.email]].forEach(([label, val]) => {
+          const row = h("div", null, h("span", { class: "label", style:{color:c} }, label), " ", h("span", { class: "val" }, val));
+          comms.appendChild(row);
+        });
+        box.appendChild(comms);
+        return box;
+      })
+    )
+  ));
+}
+</script>
+</body>
+</html>
