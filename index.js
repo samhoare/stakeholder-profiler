@@ -48,38 +48,19 @@ function parseUrls(text) {
     .slice(0, 25);
 }
 
-app.get("/api/profile", async (req, res) => {
-  const { name, role, company } = req.query;
+// Simple POST endpoint — waits for full result, no streaming
+app.post("/api/profile", async (req, res) => {
+  const { name, role, company } = req.body;
 
   if (!name) {
     return res.status(400).json({ error: "Name is required" });
   }
 
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
-  res.flushHeaders();
-
-  const send = (event, data) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    if (res.flush) res.flush();
-  };
-
-  // Ping every 15s to keep the connection alive through Railway's proxy
-  const keepalive = setInterval(() => {
-    res.write(": keepalive\n\n");
-    if (res.flush) res.flush();
-  }, 15000);
-
-  const done = () => {
-    clearInterval(keepalive);
-    res.end();
-  };
+  // Give the response plenty of time
+  req.setTimeout(180000);
+  res.setTimeout(180000);
 
   try {
-    send("status", { message: "Searching web for public information…" });
-
     let research = "";
     try {
       const searchRes = await client.messages.create({
@@ -97,10 +78,9 @@ app.get("/api/profile", async (req, res) => {
         .map(b => b.text);
       if (texts.length) research = texts.join("\n");
     } catch (e) {
-      send("status", { message: "Web search unavailable — using training knowledge…" });
+      console.log("Web search failed:", e.message);
+      // Continue without research
     }
-
-    send("status", { message: "Analysing and building profile…" });
 
     const profileRes = await client.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -128,23 +108,23 @@ Extract all URLs from the research for the sources array. Be specific and ground
         parsed.sources = parseUrls(research);
       }
     } catch {
-      send("error", { message: "Failed to parse profile output" });
-      done();
-      return;
+      return res.status(500).json({ error: "Failed to parse profile output", raw: txt.slice(0, 300) });
     }
 
-    send("done", { profile: parsed });
-  } catch (e) {
-    send("error", { message: e.message || "Unknown error" });
-  }
+    res.json({ profile: parsed });
 
-  done();
+  } catch (e) {
+    console.error("Profile error:", e.message);
+    res.status(500).json({ error: e.message || "Unknown error" });
+  }
 });
 
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-app.listen(PORT, () => {
+// Increase server timeout to 3 minutes
+const server = app.listen(PORT, () => {
   console.log(`\n✅ Stakeholder Profiler running at http://localhost:${PORT}\n`);
 });
+server.timeout = 180000;
