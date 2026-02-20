@@ -1,3 +1,6 @@
+Index · HTML
+Copy
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -262,44 +265,57 @@ function resetForm() {
   el("error-box").style.display = "none";
 }
 
-// ── API call via SSE ─────────────────────────────────────────────────────────
-function generate() {
+// ── API call via POST ────────────────────────────────────────────────────────
+async function generate() {
   const name = nameInput.value.trim();
   if (!name) return;
   el("error-box").style.display = "none";
-  setStatus("Searching web for public information…");
 
-  const params = new URLSearchParams({ name, role: roleInput.value.trim(), company: companyInput.value.trim() });
-  const evtSource = new EventSource(`/api/profile?${params}`);
+  // Cycle through status messages while waiting
+  const messages = [
+    "Searching web for public information…",
+    "Still searching — this takes up to 60 seconds…",
+    "Analysing profile data…",
+    "Building structured output…",
+    "Almost there…"
+  ];
+  let msgIndex = 0;
+  setStatus(messages[0]);
+  const msgTimer = setInterval(() => {
+    msgIndex = Math.min(msgIndex + 1, messages.length - 1);
+    el("status-msg").textContent = messages[msgIndex];
+  }, 15000);
 
-  evtSource.addEventListener("status", e => {
-    const d = JSON.parse(e.data);
-    el("status-msg").textContent = d.message;
-  });
+  try {
+    const res = await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        role: roleInput.value.trim(),
+        company: companyInput.value.trim()
+      })
+    });
 
-  evtSource.addEventListener("done", e => {
-    evtSource.close();
-    resetForm();
-    const { profile } = JSON.parse(e.data);
-    renderProfile(profile);
-    showProfile();
-  });
+    clearInterval(msgTimer);
 
-  evtSource.addEventListener("error", e => {
-    evtSource.close();
-    try {
-      const d = JSON.parse(e.data);
-      setError("Error: " + d.message);
-    } catch {
-      setError("Connection error. Check the server is running.");
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Server error" }));
+      setError("Error: " + (err.error || res.statusText));
+      resetForm();
+      return;
     }
-  });
 
-  evtSource.onerror = () => {
-    evtSource.close();
-    setError("Connection lost. Is the server running?");
+    const data = await res.json();
     resetForm();
-  };
+    renderProfile(data.profile);
+    showProfile();
+
+  } catch (e) {
+    clearInterval(msgTimer);
+    setError("Connection error: " + e.message);
+    resetForm();
+  }
 }
 
 btnGen.addEventListener("click", generate);
