@@ -1,4 +1,3 @@
-require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -11,7 +10,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
 
 const SYSTEM_PROMPT = `You are an expert intelligence analyst producing Vodafone-style stakeholder profiles.
 Given a person's name, job title, organisation, and web research, return ONLY valid JSON (no markdown, no preamble):
@@ -75,6 +74,15 @@ app.post("/api/profile", async (req, res) => {
 
   req.setTimeout(300000);
   res.setTimeout(300000);
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  console.log("API key present:", !!apiKey, "length:", apiKey ? apiKey.length : 0);
+
+  if (!apiKey) {
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY not set" });
+  }
+
+  const client = new Anthropic({ apiKey });
 
   try {
     // Step 1: web search with retry
