@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 const SYSTEM_PROMPT = `You are an expert intelligence analyst producing Vodafone-style stakeholder profiles.
-Given a person's name, job title, organisation, and web research, return ONLY valid JSON (no markdown, no preamble):
+Return ONLY valid JSON (no markdown, no preamble):
 {
   "name": "Full name with honours",
   "role": "Current job title",
@@ -45,16 +45,16 @@ function parseUrls(text) {
     .slice(0, 25);
 }
 
-async function withRetry(fn, retries = 5, delay = 3000) {
+async function withRetry(fn, retries = 4, delay = 65000) {
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (e) {
-      const isOverloaded = e?.status === 529 || e?.message?.includes("overloaded");
-      if (isOverloaded && i < retries - 1) {
-        console.log(`Overloaded, retrying in ${delay}ms (attempt ${i + 1}/${retries})`);
-        await new Promise(r => setTimeout(r, delay));
-        delay *= 2;
+      const isRetryable = e?.status === 529 || e?.status === 429 ||
+                          e?.message?.includes("overloaded") || e?.message?.includes("rate_limit");
+      if (isRetryable && i < retries - 1) {
+        console.log(`Rate limited, waiting 65s to clear window (attempt ${i + 1}/${retries})`);
+        await new Promise(r => setTimeout(r, 65000));
       } else {
         throw e;
       }
@@ -75,31 +75,33 @@ app.post("/api/profile", async (req, res) => {
   const client = new Anthropic({ apiKey });
 
   try {
-    // Step 1: web search
+    // Step 1: web search using Sonnet
     let research = "";
+    let sources = [];
     try {
       console.log("Starting web search for:", name);
       const searchRes = await withRetry(() => client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        max_tokens: 2000,
         tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages: [{
           role: "user",
-          content: `Search for comprehensive public information about ${name}${role ? `, ${role}` : ""}${company ? ` at ${company}` : ""}. Find: career history, biographical details, speeches, events, publications, LinkedIn profile, awards, news coverage. Include all source URLs.`
+          content: `Search for key facts about ${name}${role ? `, ${role}` : ""}${company ? ` at ${company}` : ""}. Find career history, background, key interests, public speeches or writing. Be concise.`
         }]
       }));
       const texts = (searchRes.content || []).filter(b => b.type === "text").map(b => b.text);
-      if (texts.length) research = texts.join("\n");
+      if (texts.length) research = texts.join("\n").slice(0, 2000);
+      sources = parseUrls(research);
       console.log("Web search complete, research length:", research.length);
     } catch (e) {
-      console.log("Web search failed:", e.message, "— continuing with training knowledge");
+      console.log("Web search failed:", e.message, "— using training knowledge");
     }
 
-    // Step 2: build profile
-    console.log("Building profile...");
+    // Step 2: build profile using Haiku (separate rate pool from Sonnet)
+    console.log("Building profile with Haiku...");
     const profileRes = await withRetry(() => client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 5000,
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4000,
       system: SYSTEM_PROMPT,
       messages: [{
         role: "user",
@@ -108,10 +110,10 @@ Name: ${name}
 Job Title: ${role || "Unknown"}
 Organisation: ${company || "Unknown"}
 
-Web research findings:
-${research || "No web research available — use your training knowledge. Note confidence level honestly."}
+Research summary:
+${research || "Use your training knowledge. Be honest about confidence level."}
 
-Extract all URLs from the research for the sources array.`
+Sources found: ${sources.join(", ") || "none"}`
       }]
     }));
 
@@ -119,7 +121,7 @@ Extract all URLs from the research for the sources array.`
     let parsed;
     try {
       parsed = JSON.parse(txt.replace(/```json\n?|```/g, "").trim());
-      if (!parsed.sources?.length && research) parsed.sources = parseUrls(research);
+      if (!parsed.sources?.length && sources.length) parsed.sources = sources;
     } catch {
       return res.status(500).json({ error: "JSON parse failed", raw: txt.slice(0, 300) });
     }
