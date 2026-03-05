@@ -71,7 +71,7 @@ async function withRetry(fn, retries = 4) {
 async function geminiSearch(genAI, query) {
   try {
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       tools: [{ googleSearch: {} }],
     });
 
@@ -117,11 +117,17 @@ async function runParallelResearch(genAI, name, role, company) {
     `LinkedIn profile, social media presence, and personal interests of ${subject}. Any published articles, podcasts, or public writing.`,
   ];
 
-  console.log(`Running ${queries.length} parallel Gemini searches for: ${name}`);
+  console.log(`Running ${queries.length} sequential Gemini searches for: ${name}`);
 
-  const results = await Promise.allSettled(
-    queries.map(q => geminiSearch(genAI, q))
-  );
+  // Sequential to avoid rate limits on free tier
+  const results = [];
+  for (const q of queries) {
+    const result = await geminiSearch(genAI, q);
+    results.push({ status: "fulfilled", value: result });
+    // Small delay between requests to be safe
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  const settled = results;
 
   const sections = [
     "CAREER & BACKGROUND",
@@ -134,7 +140,7 @@ async function runParallelResearch(genAI, name, role, company) {
   let combinedResearch = "";
   const allSources = new Set();
 
-  results.forEach((result, i) => {
+  settled.forEach((result, i) => {
     if (result.status === "fulfilled" && result.value.text) {
       combinedResearch += `\n\n## ${sections[i]}\n${result.value.text}`;
       result.value.sources.forEach(s => allSources.add(s));
