@@ -3,6 +3,9 @@ const cors = require("cors");
 const path = require("path");
 const Anthropic = require("@anthropic-ai/sdk");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const plugins = require("./plugin-registry");
+
+plugins.loadFromDirectory(path.join(__dirname, "plugins"));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -160,8 +163,10 @@ async function runParallelResearch(genAI, name, role, company) {
 
 // ── ROUTE ──────────────────────────────────────────────────────────────────────
 app.post("/api/profile", async (req, res) => {
-  const { name, role, company } = req.body;
+  let { name, role, company } = req.body;
   if (!name) return res.status(400).json({ error: "Name is required" });
+
+  ({ name, role, company } = await plugins.runHook("beforeResearch", { name, role, company }));
 
   req.setTimeout(360000);
   res.setTimeout(360000);
@@ -195,8 +200,7 @@ app.post("/api/profile", async (req, res) => {
           tools: [{ type: "web_search_20250305", name: "web_search" }],
           messages: [{
             role: "user",
-            content: `Search thoroughly for: ${name}${role ? `, ${role}` : ""}${company ? ` at ${company}` : ""}. 
-Find career history, background, recent news, professional interests, org structure, and social presence.`
+            content: `Search thoroughly for: ${name}${role ? `, ${role}` : ""}${company ? ` at ${company}` : ""}. \nFind career history, background, recent news, professional interests, org structure, and social presence.`
           }]
         }));
         const texts = (searchRes.content || []).filter(b => b.type === "text").map(b => b.text);
@@ -207,6 +211,8 @@ Find career history, background, recent news, professional interests, org struct
       }
     }
 
+    ({ research, sources } = await plugins.runHook("afterResearch", { name, role, company, research, sources }));
+
     // ── Step 2: Claude Sonnet builds the profile ──
     console.log("Building profile with Claude Sonnet...");
 
@@ -216,18 +222,7 @@ Find career history, background, recent news, professional interests, org struct
       system: SYSTEM_PROMPT,
       messages: [{
         role: "user",
-        content: `Build a detailed stakeholder intelligence profile for:
-
-Name: ${name}
-Job Title: ${role || "Unknown"}
-Organisation: ${company || "Unknown"}
-
-Research compiled from multiple targeted searches:
-${research || "No research available. Use training knowledge and be honest about confidence level."}
-
-Sources found: ${sources.join(", ") || "none"}
-
-Use the research thoroughly. Extract specific facts, dates, names, and quotes where available. Do not pad with generics.`
+        content: `Build a detailed stakeholder intelligence profile for:\n\nName: ${name}\nJob Title: ${role || "Unknown"}\nOrganisation: ${company || "Unknown"}\n\nResearch compiled from multiple targeted searches:\n${research || "No research available. Use training knowledge and be honest about confidence level."}\n\nSources found: ${sources.join(", ") || "none"}\n\nUse the research thoroughly. Extract specific facts, dates, names, and quotes where available. Do not pad with generics.`
       }]
     }));
 
@@ -244,6 +239,8 @@ Use the research thoroughly. Extract specific facts, dates, names, and quotes wh
     } catch {
       return res.status(500).json({ error: "JSON parse failed", raw: txt.slice(0, 300) });
     }
+
+    ({ profile: parsed } = await plugins.runHook("afterProfile", { name, role, company, research, sources, profile: parsed }));
 
     console.log("Profile complete for:", name);
     res.json({ profile: parsed });
